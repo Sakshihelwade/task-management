@@ -51,39 +51,64 @@ TaskRouter.post("/add/tasks", async (req, res) => {
 // READ all tasks with optional filtering by title or description
 TaskRouter.get("/get/tasks", async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = 10, search = "", status = "" } = req.query;
 
     // Convert query parameters to numbers
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
 
-    // Build the search filter
-    const searchFilter = {
-      $or: [
-        { title: { $regex: search, $options: "i" } },         // Case-insensitive match for title
-        { description: { $regex: search, $options: "i" } }    // Case-insensitive match for description
-      ]
-    };
+    // Initialize search filter as empty object
+    let searchFilter = {};
 
-    // Fetch tasks with pagination and search filter
-    const tasks = await Task.find(search ? searchFilter : {})
+    // If the search term is a number, filter by task number (order + 1)
+    if (search) {
+      const searchNumber = parseInt(search, 10);
+      if (!isNaN(searchNumber)) {
+        // If it's a valid number, filter by task order
+        searchFilter.$or = [
+          { title: { $regex: search, $options: "i" } },
+          { shortDescription: { $regex: search, $options: "i" } },
+          { order: searchNumber - 1 } // Match task order if search is a number
+        ];
+      } else {
+        // If the search is not a number, search by title and shortDescription
+        searchFilter.$or = [
+          { title: { $regex: search, $options: "i" } },
+          { shortDescription: { $regex: search, $options: "i" } }
+        ];
+      }
+    }
+
+    // Add status filter if a status is provided
+    if (status) {
+      searchFilter.status = status;
+    }
+
+    // Fetch tasks from the database with pagination and filters, sorted by order descending
+    const tasks = await Task.find(searchFilter)
+      .sort({ order: -1 })  // Sorting tasks by order in descending order (latest first)
       .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber)
-      .sort({ order: 1 });
+      .limit(limitNumber);
 
-    // Total count for pagination info
-    const totalTasks = await Task.countDocuments(search ? searchFilter : {});
+    // Count total tasks matching the filter
+    const totalTasks = await Task.countDocuments(searchFilter);
 
-    res.status(200).json({
-      totalTasks,
-      currentPage: pageNumber,
-      totalPages: Math.ceil(totalTasks / limitNumber),
+    // Calculate total pages
+    const totalPages = Math.ceil(totalTasks / limitNumber);
+
+    // Respond with the data
+    res.json({
       tasks,
+      totalTasks,
+      totalPages,
+      page: pageNumber
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching tasks" });
   }
 });
+
 
 
 // UPDATE a task by ID

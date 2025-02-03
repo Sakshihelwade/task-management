@@ -12,9 +12,9 @@ const initialState = {
 
 export const getAllTasks = createAsyncThunk(
   "task/getAllTasks",
-  async ({ page, filter }) => {
+  async ({ page, filter, status }) => {
     try {
-      const response = await axios.get(`${BASE_URL}/get/tasks?page=${page}&search=${filter}`);
+      const response = await axios.get(`${BASE_URL}/get/tasks?page=${page}&search=${filter}&status=${status}`);
       return response.data;
     } catch (error) {
       console.log(error);
